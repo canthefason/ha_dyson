@@ -1,8 +1,10 @@
 """Support for Dyson Pure Hot+Cool link fan."""
 import logging
 
-from libpurecool.const import HeatMode, HeatState, FocusMode, HeatTarget
+from libpurecool.const import HeatMode, HeatState, FocusMode, HeatTarget, \
+                              FanPower
 from libpurecool.dyson_pure_state import DysonPureHotCoolState
+from libpurecool.dyson_pure_state_v2 import DysonPureHotCoolV2State
 from libpurecool.dyson_pure_hotcool_link import DysonPureHotCoolLink
 
 from homeassistant.components.climate import ClimateDevice
@@ -10,8 +12,10 @@ from homeassistant.components.climate.const import (
     CURRENT_HVAC_COOL,
     CURRENT_HVAC_HEAT,
     CURRENT_HVAC_IDLE,
+    CURRENT_HVAC_OFF,
     HVAC_MODE_COOL,
     HVAC_MODE_HEAT,
+    HVAC_MODE_OFF,
     SUPPORT_FAN_MODE,
     FAN_FOCUS,
     FAN_DIFFUSE,
@@ -24,7 +28,7 @@ from . import DYSON_DEVICES
 _LOGGER = logging.getLogger(__name__)
 
 SUPPORT_FAN = [FAN_FOCUS, FAN_DIFFUSE]
-SUPPORT_HVAG = [HVAC_MODE_COOL, HVAC_MODE_HEAT]
+SUPPORT_HVAG = [HVAC_MODE_COOL, HVAC_MODE_HEAT, HVAC_MODE_OFF]
 SUPPORT_FLAGS = SUPPORT_TARGET_TEMPERATURE | SUPPORT_FAN_MODE
 
 
@@ -57,7 +61,8 @@ class DysonPureHotCoolLinkDevice(ClimateDevice):
 
     def on_message(self, message):
         """Call when new messages received from the climate."""
-        if not isinstance(message, DysonPureHotCoolState):
+        if not isinstance(message, DysonPureHotCoolState) and \
+           not isinstance(message, DysonPureHotCoolV2State):
             return
 
         _LOGGER.debug("Message received for climate device %s : %s", self.name, message)
@@ -109,10 +114,12 @@ class DysonPureHotCoolLinkDevice(ClimateDevice):
 
     @property
     def hvac_mode(self):
-        """Return hvac operation ie. heat, cool mode.
+        """Return hvac operation ie. heat, cool mode or off.
 
         Need to be one of HVAC_MODE_*.
         """
+        if self._device.state.fan_power == FanPower.POWER_OFF.value:
+            return HVAC_MODE_OFF
         if self._device.state.heat_mode == HeatMode.HEAT_ON.value:
             return HVAC_MODE_HEAT
         return HVAC_MODE_COOL
@@ -131,6 +138,8 @@ class DysonPureHotCoolLinkDevice(ClimateDevice):
 
         Need to be one of CURRENT_HVAC_*.
         """
+        if self._device.state.fan_power == FanPower.POWER_OFF.value:
+            return CURRENT_HVAC_OFF
         if self._device.state.heat_mode == HeatMode.HEAT_ON.value:
             if self._device.state.heat_state == HeatState.HEAT_STATE_ON.value:
                 return CURRENT_HVAC_HEAT
@@ -160,6 +169,7 @@ class DysonPureHotCoolLinkDevice(ClimateDevice):
         target_temp = min(self.max_temp, target_temp)
         target_temp = max(self.min_temp, target_temp)
         self._device.set_configuration(
+            fan_power=FanPower.POWER_ON,
             heat_target=HeatTarget.celsius(target_temp), heat_mode=HeatMode.HEAT_ON
         )
 
@@ -174,10 +184,12 @@ class DysonPureHotCoolLinkDevice(ClimateDevice):
     def set_hvac_mode(self, hvac_mode):
         """Set new target hvac mode."""
         _LOGGER.debug("Set %s heat mode %s", self.name, hvac_mode)
-        if hvac_mode == HVAC_MODE_HEAT:
-            self._device.set_configuration(heat_mode=HeatMode.HEAT_ON)
+        if hvac_mode == HVAC_MODE_OFF:
+            self._device.set_configuration(fan_power=FanPower.POWER_OFF)
+        elif hvac_mode == HVAC_MODE_HEAT:
+            self._device.set_configuration(fan_power=FanPower.POWER_ON, heat_mode=HeatMode.HEAT_ON)
         elif hvac_mode == HVAC_MODE_COOL:
-            self._device.set_configuration(heat_mode=HeatMode.HEAT_OFF)
+            self._device.set_configuration(fan_power=FanPower.POWER_ON, heat_mode=HeatMode.HEAT_OFF)
 
     @property
     def min_temp(self):
