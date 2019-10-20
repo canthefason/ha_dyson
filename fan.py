@@ -220,7 +220,7 @@ class DysonPureCoolLinkDevice(FanEntity):
         _LOGGER.debug("Set fan speed to: %s", speed)
 
         if speed == FanSpeed.FAN_SPEED_AUTO.value:
-            self._device.set_configuration(fan_mode=FanMode.AUTO)
+            self.set_auto_mode(True)
         else:
             fan_speed = FanSpeed("{0:04d}".format(int(speed)))
             self._device.set_configuration(fan_mode=FanMode.FAN, fan_speed=fan_speed)
@@ -232,7 +232,7 @@ class DysonPureCoolLinkDevice(FanEntity):
         _LOGGER.debug("Turn on fan %s with speed %s", self.name, speed)
         if speed:
             if speed == FanSpeed.FAN_SPEED_AUTO.value:
-                self._device.set_configuration(fan_mode=FanMode.AUTO)
+                self.set_auto_mode(True)
             else:
                 fan_speed = FanSpeed("{0:04d}".format(int(speed)))
                 self._device.set_configuration(
@@ -310,13 +310,13 @@ class DysonPureCoolLinkDevice(FanEntity):
 
     def set_auto_mode(self, auto_mode: bool) -> None:
         """Turn fan in auto mode."""
-        from libpurecool.const import FanMode
+        from libpurecool.const import FanMode, FanSpeed, AutoMode
 
         _LOGGER.debug("Set %s auto mode %s", self.name, auto_mode)
         if auto_mode:
-            self._device.set_configuration(fan_mode=FanMode.AUTO)
+            self._device.set_configuration(fan_mode=FanMode.FAN, fan_speed=FanSpeed.FAN_SPEED_AUTO, auto_mode=AutoMode.AUTO_ON)
         else:
-            self._device.set_configuration(fan_mode=FanMode.FAN)
+            self._device.set_configuration(fan_mode=FanMode.FAN, auto_mode=AutoMode.AUTO_OFF)
 
     @property
     def speed_list(self) -> list:
